@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
 	"os"
 
@@ -23,19 +22,31 @@ func main() {
 	}
 
 	for _, website := range websites {
-		fmt.Printf("Checking: %v\n", website)
-		resp, err := http.Get(website)
+		log.Info().Msgf("Checking: %v", website)
+
+		statusCode, err := statusCheck(website)
 		if err != nil {
 			log.Error().Err(err).Msgf("Error with GET request to %v", website)
 			continue
 		}
-		defer resp.Body.Close()
 
-		if resp.StatusCode != http.StatusOK {
-			log.Error().Int("status_code", resp.StatusCode).Msgf("Unexpected status code for %v", website)
+		if statusCode != http.StatusOK {
+			log.Error().Int("status_code", statusCode).Msgf("Unexpected status code for %v", website)
 		} else {
 			log.Info().Msgf("All is good with %v", website)
 		}
 
 	}
+}
+
+func statusCheck(url string) (int, error) {
+	log.Trace().Msgf("Making GET request to %v", url)
+	resp, err := http.Get(url)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+
+	log.Debug().Int("status_code", resp.StatusCode).Msgf("Received response for %v", url)
+	return resp.StatusCode, nil
 }
