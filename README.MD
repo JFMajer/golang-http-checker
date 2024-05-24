@@ -1,0 +1,1 @@
+Simple project to learn basic of concurrent programming in golang.
