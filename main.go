@@ -8,6 +8,12 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+type result struct {
+	url        string
+	statusCode int
+	err        error
+}
+
 func main() {
 	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
@@ -21,32 +27,42 @@ func main() {
 		"https://amazon.com",
 	}
 
+	c := make(chan result)
+
 	for _, website := range websites {
-		log.Info().Msgf("Checking: %v", website)
-
-		statusCode, err := statusCheck(website)
-		if err != nil {
-			log.Error().Err(err).Msgf("Error with GET request to %v", website)
-			continue
-		}
-
-		if statusCode != http.StatusOK {
-			log.Error().Int("status_code", statusCode).Msgf("Unexpected status code for %v", website)
-		} else {
-			log.Info().Msgf("All is good with %v", website)
-		}
-
+		go statusCheck(website, c)
 	}
+
+	for range websites {
+		res := <-c
+		if res.err != nil {
+			log.Error().Err(res.err).Msgf("Error with GET request to %v", res.url)
+		} else if res.statusCode != http.StatusOK {
+			log.Error().Int("status_code", res.statusCode).Msgf("Unexpected status code for %v", res.url)
+		} else {
+			log.Info().Msgf("All is good with %v", res.url)
+		}
+	}
+
 }
 
-func statusCheck(url string) (int, error) {
+func statusCheck(url string, c chan result) {
 	log.Trace().Msgf("Making GET request to %v", url)
 	resp, err := http.Get(url)
 	if err != nil {
-		return 0, err
+		c <- result{
+			statusCode: 0,
+			url:        url,
+			err:        err,
+		}
+		return
 	}
 	defer resp.Body.Close()
 
 	log.Debug().Int("status_code", resp.StatusCode).Msgf("Received response for %v", url)
-	return resp.StatusCode, nil
+	c <- result{
+		statusCode: resp.StatusCode,
+		url:        url,
+		err:        nil,
+	}
 }
